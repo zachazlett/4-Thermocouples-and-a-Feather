@@ -190,7 +190,7 @@ mqtt.subscribe(&t3alm);
 mqtt.subscribe(&t4alm);
 
   
-
+delay(10);
 
   
 /******************Thermocouple Setup******************************/
