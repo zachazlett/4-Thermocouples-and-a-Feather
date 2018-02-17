@@ -2,12 +2,12 @@
 // products from Adafruit!
 //
 // Cobbled together by Zac Hazlett with code from the libraries below and their included examples.
-// 
+// Copyright (c) 2018 Zac Hazlett
+// Licensed under the MIT license.
 //
 // All text above must be included in any redistribution.
 
-// I used this thermocouple board. http://www.playingwithfusion.com/productview.php?pdid=72&catid=1001
-// and this Arduino board. https://www.adafruit.com/product/2821
+
 
 //Make sure you have the following libraries and drivers installed:
 //#1 https://github.com/esp8266/Arduino
@@ -15,7 +15,7 @@
 //#3 Adafruit_MQTT
 //#4 WiFiClient
 //#5 https://github.com/tzapu/WiFiManager
-//#6 http://www.pushetta.com/
+//#6 http://www.pushingbox.com
 
 
 /***********Include These*************/
@@ -39,40 +39,35 @@
 #define AIO_KEY         "Key"
 
 
-/************************* Pushetta Setup *********************************/
-// You'll need to setup an account at www.pushetta.com and download the iOS app to have
-// push notifications and alarms.
+/************************* PushingBox Setup *********************************/
+// You'll need to setup an account at www.pushingbox.com and download the Prowl app to have
+// push notifications and alarms
 
-// Enter your Pushetta Key and Channel name Below:
-char APIKEY[] = ("Key"); // Put here your API key. It's in the dashboard
-char CHANNEL[] = "Channel Name";                               // and here your channel name
+// Enter your PushingBox Scenario DeviceIDs below:
 
-char serverName[] = "api.pushetta.com";
-boolean lastConnected = false;
 
-void sendToPushetta(char channel[], String text) {
-  WiFiClient client;
-  client.stop();
+char DEVID0[] = "ID#0"; //Scenario - #0!
+char DEVID1[] = "ID#1"; //Scenario - #1!
+char DEVID2[] = "ID#2"; //Scenario - #2!
+char DEVID3[] = "ID#3"; //Scenario - #3!
+char DEVID4[] = "ID#4"; //Scenario - #4!
+char DEVID5[] = "ID#5"; //Scenario - #5!
+char serverName[] = "api.pushingbox.com";
 
-  if (client.connect(serverName, 80))
-  {
-    client.print("POST /api/pushes/");
-    client.print(channel);
-    client.println("/ HTTP/1.1");
+//Function for sending the request to PushingBox
+void sendToPushingBox(char devid[]){
+ WiFiClient client;
+ if(client.connect(serverName, 80)) { 
+    client.print("GET /pushingbox?devid=");
+    client.print(devid);
+    client.println(" HTTP/1.1");
     client.print("Host: ");
     client.println(serverName);
-    client.print("Authorization: Token ");
-    client.println(APIKEY);
-    client.println("Content-Type: application/json");
-    client.print("Content-Length: ");
-    client.println(text.length() + 46);
-    client.println();
-    client.print("{ \"body\" : \"");
-    client.print(text);
-    client.println("\", \"message_type\" : \"text/plain\" }");
+    client.println("User-Agent: Arduino");
     client.println();
   } 
-  }
+ }
+
 
 /************************* Setup SPI and pins *********************************/
   // use hardware SPI, just pass in the CS pin
@@ -102,12 +97,12 @@ void sendToPushetta(char channel[], String text) {
   int sensorState2;
   int sensorState3;
   int sensorState4;
-  // We will set starting alarm values below. If you want them hardcored put the values here.
+  // We will set starting alarm values below. 
   // They will be changed on the io.adafruit.com site later.
-  int t0almval = 1000;
-  int t1almval = 1000;
-  int t2almval = 1000;
-  int t3almval = 1000;
+  int t0almval = 400;
+  int t1almval = 2000;
+  int t2almval = 650;
+  int t3almval = 100;
   int t4almval = 1000;
 
 
@@ -130,13 +125,11 @@ Adafruit_MQTT_Subscribe t4alm = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/fe
   
 // Bug workaround for Arduino 1.6.6, it seems to need a function declaration
 // for some reason (only affects ESP8266, likely an arduino-builder bug).
-  void MQTT_connect();
+void MQTT_connect();
 
 
  
 void setup() {
-  
-  
   /************************* Wifi Setup *********************************/
   // This code will run the WifiManager Library and let you chose your SSID to connect to
   // if it can't find the last connected SSID.
@@ -146,7 +139,7 @@ void setup() {
     Serial.begin(115200);
 
     //WiFiManager
-    //Local initialization. Once its business is done, there is no need to keep it around
+    //Local intialization. Once its business is done, there is no need to keep it around
     delay(5000);
     WiFiManager wifiManager;
     //reset saved settings
@@ -167,19 +160,10 @@ void setup() {
     
     //if you get here you have connected to the WiFi
     Serial.println("connected...yeey :)");
+    sendToPushingBox(DEVID5); //I use this to give you a push notification saying the Wifi is connected.
     delay(20000);
-    
-    //This will push a notification once Wifi is connected.
-    Serial.println("Connecting to Pushetta");
-    WiFiClient client;
-    const int httpPort = 80;
-    if (!client.connect("api.pushetta.com", httpPort)) {
-    Serial.println("Connection failed");
-    return;
-  }
+   
 
-    sendToPushetta(CHANNEL, "Wifi is Alive!");
-    delay(20000);
 
 
 //******************MQTT Subscribe Setup******************************/
@@ -189,8 +173,10 @@ mqtt.subscribe(&t2alm);
 mqtt.subscribe(&t3alm);
 mqtt.subscribe(&t4alm);
 
-  
+
+//You need this delay for WifiManager to work with iOS.
 delay(10);
+
 
   
 /******************Thermocouple Setup******************************/
@@ -273,6 +259,9 @@ delay(10);
 
 }
 
+
+
+/************************** Main Program Loop ************************/
 
  void loop() {
   
@@ -374,6 +363,7 @@ delay(10);
  /************ Alarm Code ************/
   
   //This code will read the current alarm set points. You'll need to change them on io.adafruit.com after each reboot so they update.
+  // If you don't update them you'll use the defualt values above.
   
  
   Adafruit_MQTT_Subscribe *subscription;
@@ -407,13 +397,13 @@ delay(10);
   
   }
   //This is debugging and making sure you're getting the alarm set points from Adafruit IO.
-  Serial.println(lastSensorState0);
-  Serial.println(t0almval);
-  Serial.println(t1almval);
-  Serial.println(t2almval);
-  Serial.println(t3almval);
-  Serial.println(t4almval);
-  Serial.println(sensorState0);
+  //Serial.println(lastSensorState4);
+  //Serial.println(t0almval);
+  //Serial.println(t1almval);
+  //Serial.println(t2almval);
+  //Serial.println(t3almval);
+  //Serial.println(t4almval);
+  //Serial.println(sensorState4);
 
   //Set these to the thermocouples of your choosing and pick if you want to use Fahrenheit or Celsius.
   sensorState0 = F0;
@@ -432,19 +422,11 @@ delay(10);
     // check that the previous value was below the threshold:
   if (lastSensorState0 < t0almval) {
     // the sensor just crossed the threshold
-    Serial.println("Alarm #0");
+    Serial.println("Sensor #0 crossed the threshold");
     
     // Push notification setup and send.
-    Serial.println("Connecting to Pushetta");
-    WiFiClient client;
-    const int httpPort = 80;
-    if (!client.connect("api.pushetta.com", httpPort)) {
-    Serial.println("Connection failed");
-    return;
-  }
-  // Put in your message below.
-  sendToPushetta(CHANNEL, "Alarm #1");
-  delay(20000);
+    Serial.println("Connecting to PushingBox");
+    sendToPushingBox(DEVID0);
      }
   }
   // save state for next comparison:
@@ -461,17 +443,10 @@ delay(10);
     Serial.println("Sensor #1 crossed the threshold");
     
     // Push notification setup and send.
-    Serial.println("Connecting to Pushetta");
-    WiFiClient client;
-    const int httpPort = 80;
-    if (!client.connect("api.pushetta.com", httpPort)) {
-    Serial.println("Connection failed");
-    return;
+    Serial.println("Connecting to PushingBox");
+    sendToPushingBox(DEVID1);   
+ 
   }
-  // Put in your message below.
-  sendToPushetta(CHANNEL, "Alarm #1");
-  delay(20000);
-     }
   }
   // save state for next comparison:
   lastSensorState1 = sensorState1;
@@ -487,17 +462,9 @@ delay(10);
     Serial.println("Sensor #2 crossed the threshold");
     
     // Push notification setup and send.
-    Serial.println("Connecting to Pushetta");
-    WiFiClient client;
-    const int httpPort = 80;
-    if (!client.connect("api.pushetta.com", httpPort)) {
-    Serial.println("Connection failed");
-    return;
+    Serial.println("Connecting to PushingBox");
+    sendToPushingBox(DEVID2);
   }
-  // Put in your message below.
-  sendToPushetta(CHANNEL, "Alarm #2");
-  delay(20000);
-     }
   }
   // save state for next comparison:
   lastSensorState2 = sensorState2;
@@ -513,46 +480,30 @@ delay(10);
     Serial.println("Sensor #3 crossed the threshold");
     
     // Push notification setup and send.
-    Serial.println("Connecting to Pushetta");
-    WiFiClient client;
-    const int httpPort = 80;
-    if (!client.connect("api.pushetta.com", httpPort)) {
-    Serial.println("Connection failed");
-    return;
+    Serial.println("Connecting to PushingBox");
+    sendToPushingBox(DEVID3);
   }
-  // Put in your message below.
-  sendToPushetta(CHANNEL, "Alarm #3");
-  delay(20000);
-     }
   }
   // save state for next comparison:
   lastSensorState3 = sensorState3;
 
 
   //Alarm #4
-  
-  if (sensorState4 >= t4almval) {
+  if (t4almval >= sensorState4 ) {
     // check that the previous value was below the threshold:
-  if (lastSensorState4 < t4almval) {
+  if (t4almval < lastSensorState4) {
     // the sensor just crossed the threshold
     Serial.println("Sensor #4 crossed under the threshold");
     
     // Push notification setup and send.
-    Serial.println("Connecting to Pushetta");
-    WiFiClient client;
-    const int httpPort = 80;
-    if (!client.connect("api.pushetta.com", httpPort)) {
-    Serial.println("Connection failed");
-    return;
+    Serial.println("Connecting to PushingBox");
+    sendToPushingBox(DEVID4);
   }
-  // Put in your message below.
-  sendToPushetta(CHANNEL, "Alarm #4");
-  delay(20000);
-     }
   }
   // save state for next comparison:
   lastSensorState4 = sensorState4;
- }
+
+  }
   /************* MQTT Reconnect *************/
    // Function to connect and reconnect as necessary to the MQTT server.
   // Should be called in the loop function and it will take care if connecting.
@@ -583,28 +534,3 @@ delay(10);
  
   
 }
-  
- 
-  
-  
- 
-  
-
-
-  
-
-
-
-  
-
-
-
-
-  
-  
-  
-  
-  
-
-  
-
